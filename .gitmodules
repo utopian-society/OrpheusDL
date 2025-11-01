@@ -1,0 +1,3 @@
+[submodule "modules/beatport"]
+	path = modules/beatport
+	url = https://github.com/utopian-society/orpheusdl-beatport.git
