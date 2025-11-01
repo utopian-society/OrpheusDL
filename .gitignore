@@ -6,6 +6,6 @@ venv
 downloads/
 temp/
 .python-version
-modules/
+# modules/
 extensions/
 log.txt
