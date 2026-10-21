@@ -286,10 +286,8 @@ Dniel97 (Current Lead Developer) - [@Dniel97](https://github.com/Dniel97)
 
 Project Link: [Orpheus Public GitHub Repository](https://github.com/OrfiTeam/OrpheusDL)
 
-
-
 <!-- ACKNOWLEDGEMENTS -->
 ## Acknowledgements
 * Chimera by Aesir - the inspiration to the project
 * [Icon modified from a freepik image](https://www.freepik.com/)
-```
+
