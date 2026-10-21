@@ -1,3 +1,4 @@
+```markdown
 <!-- PROJECT INTRO -->
 
 
@@ -67,9 +68,16 @@ Follow these steps to get a local copy of Orpheus up and running:
 <!-- USAGE EXAMPLES -->
 ## Usage
 
-Just call `orpheus.py` with any link you want to archive, for example Qobuz:
+Just call `orpheus.py` with any link you want to archive. OrpheusDL is modular, so you can use it with any supported service:
 ```shell
+# Example: Qobuz
 python3 orpheus.py https://open.qobuz.com/album/c9wsrrjh49ftb
+
+# Example: Deezer
+python3 orpheus.py https://www.deezer.com/en/track/15593572
+
+# Example: Tidal
+python3 orpheus.py https://tidal.com/browse/album/12345678
 ```
 
 Alternatively do a search (luckysearch to automatically select the first option):
@@ -121,11 +129,11 @@ OrpheusDL supports pluggable download backends, including a built-in Python Requ
     "aria2c": {
         "binary_path": "aria2c"
     },
-    "max_connections": 4,
-    "split": 4,
+    "max_connections": 1,
+    "split": 1,
     "min_split_size": "1M",
     "continue": true,
-    "extra_args": []
+    "extra_args": ["--async-dns=false"]
 }
 ```
 
@@ -133,11 +141,13 @@ OrpheusDL supports pluggable download backends, including a built-in Python Requ
 |---|---|---|---|
 | `backend` | string | `"native"` | Download backend to use: `"native"` (built-in requests) or `"aria2c"` (external multi-connection engine). |
 | `aria2c.binary_path` | string | `"aria2c"` | Executable name or absolute file path to the `aria2c` binary on your system. |
-| `max_connections` | integer | `4` | Maximum number of concurrent connections per server (`--max-connection-per-server`). |
-| `split` | integer | `4` | Number of segments/splits to download a single file using multiple parallel connections (`--split`). |
+| `max_connections` | integer | `1` | Maximum number of concurrent connections per server (`--max-connection-per-server`). |
+| `split` | integer | `1` | Number of segments/splits to download a single file using multiple parallel connections (`--split`). |
 | `min_split_size` | string | `"1M"` | Minimum segment size before splitting a file (e.g. `"1M"`, `"5M"`). |
 | `continue` | boolean | `true` | Resume partially completed downloads if supported by the server and backend. |
-| `extra_args` | list | `[]` | Extra command-line arguments passed directly to the `aria2c` process (e.g. `["--retry-wait=2"]`). |
+| `extra_args` | list | `[]` | Extra command-line arguments passed directly to the `aria2c` process (e.g. `["--async-dns=false"]`). |
+
+**Note on connections:** `split` and `max_connections` default to `1` because modern CDNs deliver high bandwidth on single connections. Setting these above `1` introduces TLS handshake overhead and can actually *slow down* downloads. Only increase these values if your specific source severely throttles single-connection speeds.
 
 #### Automatic Resilience & Fallback
 If `backend` is set to `"aria2c"` but the `aria2c` binary is not found on your system or encounters an unrecoverable process error, OrpheusDL will:
@@ -185,13 +195,13 @@ uses `album_format` in the `playlist_format` folder
 
 `playlist_format` variables are `{name}`, `{creator}`, `{tracks}`, `{release_year}`, `{explicit}`, `{creator_id}`
 
-* `{quality}` will add
+* `{quality}` will dynamically append a quality tag to the path depending on the **module used** and the file downloaded. For example, it may add:
     ```
      [Dolby Atmos]
      [96kHz 24bit]
      [M]
+     [Hi-Res]
     ```
- to the corresponding path (depending on the module)
 * `{explicit}` will add
     ```
      [E]
@@ -282,3 +292,4 @@ Project Link: [Orpheus Public GitHub Repository](https://github.com/OrfiTeam/Orp
 ## Acknowledgements
 * Chimera by Aesir - the inspiration to the project
 * [Icon modified from a freepik image](https://www.freepik.com/)
+```
