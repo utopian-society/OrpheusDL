@@ -37,6 +37,7 @@ class Downloader:
         self.loaded_modules = module_controls['loaded_modules']
         self.load_module = module_controls['module_loader']
         self.global_settings = settings
+        self.downloader_settings = self.global_settings.get('downloader', {})
 
         self.oprinter = oprinter
         self.print = self.oprinter.oprint
@@ -85,11 +86,11 @@ class Downloader:
         
         if playlist_info.cover_url:
             self.print('Downloading playlist cover')
-            download_file(playlist_info.cover_url, f'{playlist_path}cover.{playlist_info.cover_type.name}', artwork_settings=self._get_artwork_settings())
+            download_file(playlist_info.cover_url, f'{playlist_path}cover.{playlist_info.cover_type.name}', artwork_settings=self._get_artwork_settings(), downloader_settings=self.downloader_settings)
         
         if playlist_info.animated_cover_url and self.global_settings['covers']['save_animated_cover']:
             self.print('Downloading animated playlist cover')
-            download_file(playlist_info.animated_cover_url, playlist_path + 'cover.mp4', enable_progress_bar=True)
+            download_file(playlist_info.animated_cover_url, playlist_path + 'cover.mp4', enable_progress_bar=True, downloader_settings=self.downloader_settings)
         
         if playlist_info.description:
             with open(playlist_path + 'description.txt', 'w', encoding='utf-8') as f: f.write(playlist_info.description)
@@ -191,11 +192,11 @@ class Downloader:
     def _download_album_files(self, album_path: str, album_info: AlbumInfo):
         if album_info.cover_url:
             self.print('Downloading album cover')
-            download_file(album_info.cover_url, f'{album_path}cover.{album_info.cover_type.name}', artwork_settings=self._get_artwork_settings())
+            download_file(album_info.cover_url, f'{album_path}cover.{album_info.cover_type.name}', artwork_settings=self._get_artwork_settings(), downloader_settings=self.downloader_settings)
 
         if album_info.animated_cover_url and self.global_settings['covers']['save_animated_cover']:
             self.print('Downloading animated album cover')
-            download_file(album_info.animated_cover_url, album_path + 'cover.mp4', enable_progress_bar=True)
+            download_file(album_info.animated_cover_url, album_path + 'cover.mp4', enable_progress_bar=True, downloader_settings=self.downloader_settings)
 
         if album_info.description:
             with open(album_path + 'description.txt', 'w', encoding='utf-8') as f:
@@ -228,9 +229,9 @@ class Downloader:
 
             if album_info.booklet_url and not os.path.exists(album_path + 'Booklet.pdf'):
                 self.print('Downloading booklet')
-                download_file(album_info.booklet_url, album_path + 'Booklet.pdf')
+                download_file(album_info.booklet_url, album_path + 'Booklet.pdf', downloader_settings=self.downloader_settings)
             
-            cover_temp_location = download_to_temp(album_info.all_track_cover_jpg_url) if album_info.all_track_cover_jpg_url else ''
+            cover_temp_location = download_to_temp(album_info.all_track_cover_jpg_url, downloader_settings=self.downloader_settings) if album_info.all_track_cover_jpg_url else ''
 
             # Download booklet, animated album cover and album cover if present
             self._download_album_files(album_path, album_info)
@@ -371,7 +372,8 @@ class Downloader:
         check_codec = conversions[track_info.codec] if track_info.codec in conversions else track_info.codec
         check_location = f'{track_location_name}.{codec_data[check_codec].container.name}'
 
-        if os.path.isfile(check_location) and not self.global_settings['advanced']['ignore_existing_files']:
+        has_aria2_partial = os.path.isfile(check_location + '.aria2')
+        if os.path.isfile(check_location) and not has_aria2_partial and not self.global_settings['advanced']['ignore_existing_files']:
             self.print('Track file already exists')
 
             # also make sure to add already existing tracks to the m3u playlist
@@ -389,7 +391,7 @@ class Downloader:
         self.print("Downloading track file")
         try:
             download_info: TrackDownloadInfo = self.service.get_track_download(**track_info.download_extra_kwargs)
-            download_file(download_info.file_url, track_location, headers=download_info.file_url_headers, enable_progress_bar=True, indent_level=self.oprinter.indent_number) \
+            download_file(download_info.file_url, track_location, headers=download_info.file_url_headers, enable_progress_bar=True, indent_level=self.oprinter.indent_number, downloader_settings=self.downloader_settings) \
                 if download_info.download_type is DownloadEnum.URL else shutil.move(download_info.temp_file_path, track_location)
 
             # check if get_track_download returns a different codec, for example ffmpeg failed
@@ -426,7 +428,7 @@ class Downloader:
                 compression=CoverCompressionEnum[self.global_settings['covers']['external_compression'].lower()])
             
             if covers_module_name:
-                default_temp = download_to_temp(track_info.cover_url)
+                default_temp = download_to_temp(track_info.cover_url, downloader_settings=self.downloader_settings)
                 test_cover_options = CoverOptions(file_type=ImageFileTypeEnum.jpg, resolution=get_image_resolution(default_temp), compression=CoverCompressionEnum.high)
                 cover_module = self.loaded_modules[covers_module_name]
                 rms_threshold = self.global_settings['advanced']['cover_variance_threshold']
@@ -438,31 +440,31 @@ class Downloader:
                     test_cover_info: CoverInfo = cover_module.get_track_cover(r.result_id, test_cover_options, **r.extra_kwargs)
                     if test_cover_info.url not in attempted_urls:
                         attempted_urls.append(test_cover_info.url)
-                        test_temp = download_to_temp(test_cover_info.url)
+                        test_temp = download_to_temp(test_cover_info.url, downloader_settings=self.downloader_settings)
                         rms = compare_images(default_temp, test_temp)
                         silentremove(test_temp)
                         self.print(f'Attempt {i} RMS: {rms!s}') # The smaller the root mean square, the closer the image is to the desired one
                         if rms < rms_threshold:
                             self.print('Match found below threshold ' + str(rms_threshold))
                             jpg_cover_info: CoverInfo = cover_module.get_track_cover(r.result_id, jpg_cover_options, **r.extra_kwargs)
-                            download_file(jpg_cover_info.url, cover_temp_location, artwork_settings=self._get_artwork_settings(covers_module_name))
+                            download_file(jpg_cover_info.url, cover_temp_location, artwork_settings=self._get_artwork_settings(covers_module_name), downloader_settings=self.downloader_settings)
                             silentremove(default_temp)
                             if self.global_settings['covers']['save_external']:
                                 ext_cover_info: CoverInfo = cover_module.get_track_cover(r.result_id, ext_cover_options, **r.extra_kwargs)
-                                download_file(ext_cover_info.url, f'{track_location_name}.{ext_cover_info.file_type.name}', artwork_settings=self._get_artwork_settings(covers_module_name, is_external=True))
+                                download_file(ext_cover_info.url, f'{track_location_name}.{ext_cover_info.file_type.name}', artwork_settings=self._get_artwork_settings(covers_module_name, is_external=True), downloader_settings=self.downloader_settings)
                             break
                 else:
                     self.print('Third-party module could not find cover, using fallback')
                     shutil.move(default_temp, cover_temp_location)
             else:
-                download_file(track_info.cover_url, cover_temp_location, artwork_settings=self._get_artwork_settings())
+                download_file(track_info.cover_url, cover_temp_location, artwork_settings=self._get_artwork_settings(), downloader_settings=self.downloader_settings)
                 if self.global_settings['covers']['save_external'] and ModuleModes.covers in self.module_settings[self.service_name].module_supported_modes:
                     ext_cover_info: CoverInfo = self.service.get_track_cover(track_id, ext_cover_options, **track_info.cover_extra_kwargs)
-                    download_file(ext_cover_info.url, f'{track_location_name}.{ext_cover_info.file_type.name}', artwork_settings=self._get_artwork_settings(is_external=True))
+                    download_file(ext_cover_info.url, f'{track_location_name}.{ext_cover_info.file_type.name}', artwork_settings=self._get_artwork_settings(is_external=True), downloader_settings=self.downloader_settings)
 
         if track_info.animated_cover_url and self.global_settings['covers']['save_animated_cover']:
             self.print('Downloading animated cover')
-            download_file(track_info.animated_cover_url, track_location_name + '_cover.mp4', enable_progress_bar=True)
+            download_file(track_info.animated_cover_url, track_location_name + '_cover.mp4', enable_progress_bar=True, downloader_settings=self.downloader_settings)
 
         # Get lyrics
         embedded_lyrics = ''

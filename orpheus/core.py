@@ -79,6 +79,17 @@ class Orpheus:
                 "paths_m3u": "absolute",
                 "extended_m3u": True
             },
+            "downloader": {
+                "backend": "native",
+                "aria2c": {
+                    "binary_path": "aria2c"
+                },
+                "max_connections": 4,
+                "split": 4,
+                "min_split_size": "1M",
+                "continue": True,
+                "extra_args": []
+            },
             "advanced": {
                 "advanced_login_system": False,
                 "codec_conversions": {
@@ -106,6 +117,8 @@ class Orpheus:
 
         os.makedirs('config', exist_ok=True)
         self.settings = json.loads(open(self.settings_location, 'r').read()) if os.path.exists(self.settings_location) else {}
+        if isinstance(self.settings.get('global'), dict) and 'downloader' in self.settings['global']:
+            set_global_downloader_settings(self.settings['global']['downloader'])
 
         try:
             if self.settings['global']['advanced']['debug_mode']: logging.basicConfig(level=logging.DEBUG)

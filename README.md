@@ -20,8 +20,14 @@ A modular music archival program
     - [Installation](#installation)
 - [Usage](#usage)
 - [Configuration](#configuration)
+    - [Global/General](#globalgeneral)
+    - [Global/Downloader](#globaldownloader)
     - [Global/Formatting](#globalformatting)
         - [Format variables](#format-variables)
+    - [Global/Covers](#globalcovers)
+    - [Global/Codecs](#globalcodecs)
+    - [Global/Module_defaults](#globalmodule_defaults)
+    - [Global/Lyrics](#globallyrics)
 - [Contact](#contact)
 - [Acknowledgements](#acknowledgements)
 
@@ -41,12 +47,13 @@ Follow these steps to get a local copy of Orpheus up and running:
 ### Prerequisites
 
 * Python 3.7+ (due to the requirement of dataclasses), though Python 3.9 is highly recommended
+* [aria2](https://github.com/aria2/aria2) *(optional)*: Recommended if you want accelerated multi-connection downloads via the `aria2c` download backend. Install with `sudo apt install aria2` (Debian/Ubuntu), `brew install aria2` (macOS), or via package managers on Windows.
 
 ### Installation
 
 1. Clone the repo
     ```shell
-    git clone https://github.com/OrfiTeam/OrpheusDL.git && cd OrpheusDL
+    git clone https://github.com/utopian-society/OrpheusDL.git && cd OrpheusDL
     ```
 2. Install all requirements
    ```shell
@@ -103,6 +110,41 @@ loaded module. You'll find the configuration file here: `config/settings.json`
 **NOTE: The `download_quality` really depends on the used modules, so check out the modules README.md**
 
 `search_limit`: How many search results are shown
+
+
+### Global/Downloader
+
+OrpheusDL supports pluggable download backends, including a built-in Python Requests backend (`native`) and an accelerated multi-connection backend powered by [aria2c](https://aria2.github.io/) (`aria2c`).
+
+```json5
+{
+    "backend": "native",
+    "aria2c": {
+        "binary_path": "aria2c"
+    },
+    "max_connections": 4,
+    "split": 4,
+    "min_split_size": "1M",
+    "continue": true,
+    "extra_args": []
+}
+```
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `backend` | string | `"native"` | Download backend to use: `"native"` (built-in requests) or `"aria2c"` (external multi-connection engine). |
+| `aria2c.binary_path` | string | `"aria2c"` | Executable name or absolute file path to the `aria2c` binary on your system. |
+| `max_connections` | integer | `4` | Maximum number of concurrent connections per server (`--max-connection-per-server`). |
+| `split` | integer | `4` | Number of segments/splits to download a single file using multiple parallel connections (`--split`). |
+| `min_split_size` | string | `"1M"` | Minimum segment size before splitting a file (e.g. `"1M"`, `"5M"`). |
+| `continue` | boolean | `true` | Resume partially completed downloads if supported by the server and backend. |
+| `extra_args` | list | `[]` | Extra command-line arguments passed directly to the `aria2c` process (e.g. `["--retry-wait=2"]`). |
+
+#### Automatic Resilience & Fallback
+If `backend` is set to `"aria2c"` but the `aria2c` binary is not found on your system or encounters an unrecoverable process error, OrpheusDL will:
+1. Safely remove any stale `.aria2` control files and partial non-contiguous chunks.
+2. Emit a warning in the console.
+3. Automatically fall back to the `native` download backend to complete the file from byte 0 without silent corruption.
 
 
 ### Global/Formatting:

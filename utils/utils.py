@@ -4,6 +4,19 @@ from PIL import Image, ImageChops
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from functools import reduce
+from orpheus.download_backend import (
+    DownloadBackend,
+    NativeBackend,
+    Aria2cBackend,
+    get_backend,
+    build_aria2c_args,
+    resolve_downloader_settings,
+    get_global_downloader_settings,
+    set_global_downloader_settings,
+    create_progress_bar,
+    parse_bytes,
+    resize_artwork
+)
 
 
 def hash_string(input_str: str, hash_type: str = 'MD5'):
@@ -40,53 +53,26 @@ def fix_byte_limit(path: str, byte_limit=250):
 
 r_session = create_requests_session()
 
-def download_file(url, file_location, headers={}, enable_progress_bar=False, indent_level=0, artwork_settings=None):
-    if os.path.isfile(file_location):
+def download_file(url, file_location, headers={}, enable_progress_bar=False, indent_level=0, artwork_settings=None, downloader_settings=None):
+    if downloader_settings is None:
+        downloader_settings = get_global_downloader_settings()
+
+    resolved = resolve_downloader_settings(downloader_settings)
+    continue_download = resolved.get('continue', True)
+
+    has_aria2_partial = os.path.isfile(file_location + '.aria2')
+    if os.path.isfile(file_location) and not has_aria2_partial and not continue_download:
         return None
 
-    r = r_session.get(url, stream=True, headers=headers, verify=False)
-
-    total = None
-    if 'content-length' in r.headers:
-        total = int(r.headers['content-length'])
-
-    try:
-        with open(file_location, 'wb') as f:
-            if enable_progress_bar and total:
-                try:
-                    columns = os.get_terminal_size().columns
-                    if os.name == 'nt':
-                        bar = tqdm(total=total, unit='B', unit_scale=True, unit_divisor=1024, initial=0, miniters=1, ncols=(columns-indent_level), bar_format=' '*indent_level + '{l_bar}{bar}{r_bar}')
-                    else:
-                        raise
-                except:
-                    bar = tqdm(total=total, unit='B', unit_scale=True, unit_divisor=1024, initial=0, miniters=1, bar_format=' '*indent_level + '{l_bar}{bar}{r_bar}')
-                # bar.set_description(' '*indent_level)
-                for chunk in r.iter_content(chunk_size=1024):
-                    if chunk:  # filter out keep-alive new chunks
-                        f.write(chunk)
-                        bar.update(len(chunk))
-                bar.close()
-            else:
-                [f.write(chunk) for chunk in r.iter_content(chunk_size=1024) if chunk]
-        if artwork_settings and artwork_settings.get('should_resize', False):
-            new_resolution = artwork_settings.get('resolution', 1400)
-            new_format = artwork_settings.get('format', 'jpeg')
-            if new_format == 'jpg': new_format = 'jpeg'
-            new_compression = artwork_settings.get('compression', 'low')
-            if new_compression == 'low':
-                new_compression = 90
-            elif new_compression == 'high':
-                new_compression = 70
-            if new_format == 'png': new_compression = None
-            with Image.open(file_location) as im:
-                im = im.resize((new_resolution, new_resolution), Image.Resampling.BICUBIC)
-                im.save(file_location, new_format, quality=new_compression)
-    except KeyboardInterrupt:
-        if os.path.isfile(file_location):
-            print(f'\tDeleting partially downloaded file "{str(file_location)}"')
-            silentremove(file_location)
-        raise KeyboardInterrupt
+    backend = get_backend(resolved.get('backend', 'native'), settings=resolved)
+    return backend.download(
+        url=url,
+        file_location=file_location,
+        headers=headers,
+        enable_progress_bar=enable_progress_bar,
+        indent_level=indent_level,
+        artwork_settings=artwork_settings
+    )
 
 # root mean square code by Charlie Clark: https://code.activestate.com/recipes/577630-comparing-two-images/
 def compare_images(image_1, image_2):
@@ -153,7 +139,7 @@ def save_to_temp(input: bytes):
     open(location, 'wb').write(input)
     return location
 
-def download_to_temp(url, headers={}, extension='', enable_progress_bar=False, indent_level=0):
+def download_to_temp(url, headers={}, extension='', enable_progress_bar=False, indent_level=0, downloader_settings=None):
     location = create_temp_filename() + (('.' + extension) if extension else '')
-    download_file(url, location, headers=headers, enable_progress_bar=enable_progress_bar, indent_level=indent_level)
+    download_file(url, location, headers=headers, enable_progress_bar=enable_progress_bar, indent_level=indent_level, downloader_settings=downloader_settings)
     return location
