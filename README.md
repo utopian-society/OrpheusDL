@@ -1,6 +1,5 @@
 <!-- PROJECT INTRO -->
 
-<img src='https://svgshare.com/i/__W.svg' title='Orfi_temporary' height="150">
 
 OrpheusDL
 =========
